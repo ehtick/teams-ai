@@ -441,6 +441,12 @@ class Application(Bot, Generic[StateT]):
                 if not context.activity.value:
                     return False
                 await func(context, state, context.activity.value)
+                await context.send_activity(
+                    Activity(
+                        type=ActivityTypes.invoke_response,
+                        value=InvokeResponse(status=200, body={}),
+                    )
+                )
                 return True
 
             self._routes.append(Route[StateT](__selector__, __handler__, True))
@@ -483,6 +489,12 @@ class Application(Bot, Generic[StateT]):
                 if not context.activity.value:
                     return False
                 await func(context, state, context.activity.value)
+                await context.send_activity(
+                    Activity(
+                        type=ActivityTypes.invoke_response,
+                        value=InvokeResponse(status=200, body={}),
+                    )
+                )
                 return True
 
             self._routes.append(Route[StateT](__selector__, __handler__, True))
@@ -599,7 +611,8 @@ class Application(Bot, Generic[StateT]):
             return (
                 context.activity.type == ActivityTypes.invoke
                 and context.activity.name == "message/submitAction"
-                and context.activity.value.action_name == "feedback"
+                and isinstance(context.activity.value, dict)
+                and context.activity.value.get("actionName") == "feedback"
             )
 
         def __call__(
@@ -609,12 +622,20 @@ class Application(Bot, Generic[StateT]):
                 if not context.activity.value:
                     return False
 
-                feedback = context.activity.value
-                feedback.reply_to_id = context.activity.reply_to_id
+                activity_value: dict = context.activity.value
+                feedback = FeedbackLoopData.from_dict(
+                    {
+                        **activity_value,
+                        "reply_to_id": context.activity.reply_to_id,
+                    }
+                )
 
                 await func(context, state, feedback)
                 await context.send_activity(
-                    Activity(type=ActivityTypes.invoke_response, value=InvokeResponse(status=200))
+                    Activity(
+                        type=ActivityTypes.invoke_response,
+                        value=InvokeResponse(status=200, body={}),
+                    )
                 )
                 return True
 
